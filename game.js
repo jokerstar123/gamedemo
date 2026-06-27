@@ -16,9 +16,8 @@ const fpsValue = document.querySelector("#fpsValue");
 const shadowsToggle = document.querySelector("#shadowsToggle");
 const shiftLockToggle = document.querySelector("#shiftLockToggle");
 const mobileControlsToggle = document.querySelector("#mobileControlsToggle");
-const fullscreenButton = document.querySelector("#fullscreenButton");
+const fullscreenButtons = document.querySelectorAll("[data-fullscreen-button]");
 const gamePanel = document.querySelector(".game-panel");
-const canvasWrap = document.querySelector(".canvas-wrap");
 
 if (!window.THREE) {
   message.classList.remove("hidden");
@@ -232,6 +231,67 @@ function setGraphicsQuality(quality) {
 function setSettingsOpen(isOpen) {
   settingsPanel.classList.toggle("hidden", !isOpen);
   settingsButton.setAttribute("aria-expanded", String(isOpen));
+}
+
+function isExpandedFullscreen() {
+  return document.fullscreenElement || gamePanel.classList.contains("is-fullscreen-fallback");
+}
+
+function updateFullscreenButtons() {
+  const label = isExpandedFullscreen() ? "Exit Fullscreen" : "Fullscreen";
+  fullscreenButtons.forEach((button) => {
+    button.textContent = label;
+    button.setAttribute("aria-label", label);
+  });
+}
+
+function setFullscreenFallback(isOpen) {
+  gamePanel.classList.toggle("is-fullscreen-fallback", isOpen);
+  document.body.classList.toggle("game-expanded", isOpen);
+  updateFullscreenButtons();
+  resizeRenderer();
+}
+
+function toggleFullscreen() {
+  if (!isExpandedFullscreen()) {
+    let request;
+
+    try {
+      request = gamePanel.requestFullscreen?.();
+    } catch {
+      setFullscreenFallback(true);
+      return;
+    }
+
+    if (!request) {
+      setFullscreenFallback(true);
+      return;
+    }
+
+    const fallbackTimer = window.setTimeout(() => {
+      if (!document.fullscreenElement && !gamePanel.classList.contains("is-fullscreen-fallback")) {
+        setFullscreenFallback(true);
+      }
+    }, 900);
+
+    request
+      .then(() => {
+        window.clearTimeout(fallbackTimer);
+        updateFullscreenButtons();
+      })
+      .catch(() => {
+        window.clearTimeout(fallbackTimer);
+        setFullscreenFallback(true);
+      });
+    return;
+  }
+
+  if (document.fullscreenElement) {
+    document.exitFullscreen?.();
+    return;
+  }
+
+  setFullscreenFallback(false);
 }
 
 function setShiftLock(isOn) {
@@ -507,7 +567,14 @@ function loop(now = 0) {
   renderer.render(scene, camera);
 }
 
-window.addEventListener("keydown", (event) => handleKeyboard(event, true));
+window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape" && gamePanel.classList.contains("is-fullscreen-fallback")) {
+    setFullscreenFallback(false);
+    return;
+  }
+
+  handleKeyboard(event, true);
+});
 window.addEventListener("keyup", (event) => handleKeyboard(event, false));
 window.addEventListener("resize", resizeRenderer);
 
@@ -551,14 +618,10 @@ mobileControlsToggle.addEventListener("change", () => {
   gamePanel.classList.toggle("force-touch", mobileControlsToggle.checked);
 });
 
-fullscreenButton.addEventListener("click", () => {
-  if (!document.fullscreenElement) {
-    canvasWrap.requestFullscreen?.();
-    return;
-  }
-
-  document.exitFullscreen?.();
+fullscreenButtons.forEach((button) => {
+  button.addEventListener("click", toggleFullscreen);
 });
+document.addEventListener("fullscreenchange", updateFullscreenButtons);
 
 canvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;

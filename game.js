@@ -48,6 +48,7 @@ const settings = {
 let cameraYaw = Math.atan2(9, -8);
 let looking = false;
 let lastPointerX = 0;
+let activePointerId = null;
 let lastFrameTime = 0;
 
 const colors = {
@@ -146,10 +147,18 @@ const player = new THREE.Group();
 const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x2176ff, roughness: 0.52 });
 const skinMaterial = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.58 });
 const pantsMaterial = new THREE.MeshStandardMaterial({ color: 0x26374f, roughness: 0.55 });
+const faceMaterial = new THREE.MeshStandardMaterial({ color: 0x18202f, roughness: 0.5 });
 const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.05, 0.55), bodyMaterial);
 shirt.position.y = 1.05;
 const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.62, 0.62), skinMaterial);
 head.position.y = 1.9;
+const leftEye = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.035), faceMaterial);
+leftEye.position.set(-0.16, 0.08, 0.325);
+const rightEye = leftEye.clone();
+rightEye.position.x = 0.16;
+const smile = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.055, 0.035), faceMaterial);
+smile.position.set(0, -0.13, 0.325);
+head.add(leftEye, rightEye, smile);
 const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.95, 0.35), skinMaterial);
 leftArm.position.set(-0.72, 1.06, 0);
 const rightArm = leftArm.clone();
@@ -236,6 +245,13 @@ function setShiftLock(isOn) {
   }
 }
 
+function requestCameraPointerLock() {
+  const request = canvas.requestPointerLock?.();
+  if (request?.catch) {
+    request.catch(() => {});
+  }
+}
+
 function setControl(name, isDown) {
   if (isDown) {
     keys.add(name);
@@ -282,6 +298,21 @@ function intersects(a, b) {
   return a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y && a.min.z <= b.max.z && a.max.z >= b.min.z;
 }
 
+function lerpAngle(from, to, amount) {
+  const difference = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + difference * amount;
+}
+
+function getCameraAxes() {
+  const forward = new THREE.Vector3(-Math.cos(cameraYaw), 0, -Math.sin(cameraYaw));
+  const right = new THREE.Vector3(-forward.z, 0, forward.x);
+  return { forward, right };
+}
+
+function getYawForDirection(direction) {
+  return Math.atan2(direction.x, direction.z);
+}
+
 function resetPlayer() {
   player.position.copy(state.respawn);
   state.velocity.set(0, 0, 0);
@@ -318,13 +349,17 @@ function updateHazards(elapsed) {
 
 function movePlayer(delta) {
   const input = new THREE.Vector3();
-  const forward = new THREE.Vector3(-Math.cos(cameraYaw), 0, -Math.sin(cameraYaw));
-  const right = new THREE.Vector3(-forward.z, 0, forward.x);
+  const { forward, right } = getCameraAxes();
   if (keys.has("forward")) input.add(forward);
   if (keys.has("back")) input.sub(forward);
   if (keys.has("left")) input.sub(right);
   if (keys.has("right")) input.add(right);
   if (input.lengthSq() > 0) input.normalize();
+
+  if (input.lengthSq() > 0 && !looking && !settings.shiftLock) {
+    const behindPlayerYaw = Math.atan2(-input.z, -input.x);
+    cameraYaw = lerpAngle(cameraYaw, behindPlayerYaw, Math.min(1, delta * 4.2));
+  }
 
   if (state.grounded) {
     state.coyoteTimer = 0.12;
@@ -351,10 +386,10 @@ function movePlayer(delta) {
     state.jumpBufferTimer = 0;
   }
 
-  if (input.lengthSq() > 0) {
-    player.rotation.y = Math.atan2(input.z, input.x) - Math.PI / 2;
-  } else if (settings.shiftLock) {
-    player.rotation.y = cameraYaw + Math.PI / 2;
+  if (settings.shiftLock) {
+    player.rotation.y = getYawForDirection(forward);
+  } else if (input.lengthSq() > 0) {
+    player.rotation.y = getYawForDirection(input);
   }
 
   player.position.x += state.velocity.x * delta;
@@ -409,16 +444,27 @@ function checkRules() {
 
 function updateCamera(delta) {
   const compact = window.innerWidth < 760;
-  const distance = settings.shiftLock ? (compact ? 8 : 9.4) : (compact ? 10 : 12);
-  const height = settings.shiftLock ? (compact ? 4.5 : 5.2) : (compact ? 5.2 : 6.4);
-  const target = new THREE.Vector3(
-    player.position.x + Math.cos(cameraYaw) * distance,
-    player.position.y + height,
-    player.position.z + Math.sin(cameraYaw) * distance
-  );
+  const { forward, right } = getCameraAxes();
+  const focus = new THREE.Vector3(player.position.x, player.position.y + 1.55, player.position.z);
+  const distance = settings.shiftLock ? (compact ? 7.4 : 8.8) : (compact ? 10 : 12);
+  const height = settings.shiftLock ? (compact ? 3.7 : 4.5) : (compact ? 5.2 : 6.4);
+  const shoulder = settings.shiftLock ? (compact ? 0.85 : 1.35) : 0;
+  const target = focus.clone()
+    .addScaledVector(forward, -distance)
+    .addScaledVector(right, shoulder);
+  target.y += height;
+
   camera.position.lerp(target, Math.min(1, delta * (2.6 + settings.sensitivity * 2.4)));
-  const lookAhead = settings.shiftLock ? new THREE.Vector3(-Math.cos(cameraYaw) * 3.2, 0, -Math.sin(cameraYaw) * 3.2) : new THREE.Vector3(2.5, 0, 0);
-  camera.lookAt(player.position.x + lookAhead.x, player.position.y + 1.45, player.position.z + lookAhead.z);
+
+  if (settings.shiftLock) {
+    const lockLookTarget = focus.clone()
+      .addScaledVector(forward, 4.2)
+      .addScaledVector(right, shoulder * 0.45);
+    camera.lookAt(lockLookTarget);
+    return;
+  }
+
+  camera.lookAt(player.position.x + 2.5, player.position.y + 1.45, player.position.z);
 }
 
 function updateAnimations(elapsed) {
@@ -518,29 +564,53 @@ canvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
 
   looking = true;
+  activePointerId = event.pointerId;
   lastPointerX = event.clientX;
-  canvas.setPointerCapture(event.pointerId);
+  try {
+    canvas.setPointerCapture(event.pointerId);
+  } catch {
+    // Some browser-generated pointer events cannot be captured, but dragging can still rotate the camera.
+  }
 
   if (settings.shiftLock) {
-    canvas.requestPointerLock?.();
+    requestCameraPointerLock();
   }
 });
 
 canvas.addEventListener("pointermove", (event) => {
+  if (document.pointerLockElement === canvas) return;
   if (!looking) return;
 
-  const pointerDelta = document.pointerLockElement === canvas ? event.movementX : event.clientX - lastPointerX;
+  const pointerDelta = event.clientX - lastPointerX;
   cameraYaw -= pointerDelta * 0.004 * settings.sensitivity;
   lastPointerX = event.clientX;
 });
 
+document.addEventListener("mousemove", (event) => {
+  if (!settings.shiftLock || document.pointerLockElement !== canvas) return;
+
+  cameraYaw -= event.movementX * 0.004 * settings.sensitivity;
+});
+
 canvas.addEventListener("pointerup", (event) => {
   looking = false;
-  canvas.releasePointerCapture(event.pointerId);
+  activePointerId = null;
+  if (canvas.hasPointerCapture?.(event.pointerId)) {
+    canvas.releasePointerCapture(event.pointerId);
+  }
 });
 
 canvas.addEventListener("pointercancel", () => {
   looking = false;
+  activePointerId = null;
+});
+
+document.addEventListener("pointerup", () => {
+  if (activePointerId !== null && canvas.hasPointerCapture?.(activePointerId)) {
+    canvas.releasePointerCapture(activePointerId);
+  }
+  looking = false;
+  activePointerId = null;
 });
 
 document.querySelectorAll("[data-control]").forEach((button) => {

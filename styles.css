@@ -387,6 +387,8 @@ canvas {
   min-height: 54px;
   padding: 10px;
   border: 2px solid rgba(255, 255, 255, 0.55);
+  font-size: 1.35rem;
+  line-height: 1;
   touch-action: none;
   pointer-events: auto;
   opacity: 0.9;
@@ -414,6 +416,7 @@ canvas {
 
 .control-button.jump {
   min-width: 88px;
+  font-size: 1rem;
   background: var(--lava);
   box-shadow: 0 5px 0 #a82f21;
 }

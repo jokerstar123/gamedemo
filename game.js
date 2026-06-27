@@ -49,6 +49,7 @@ let looking = false;
 let lastPointerX = 0;
 let activePointerId = null;
 let lastFrameTime = 0;
+let fallbackScrollY = 0;
 
 const colors = {
   red: 0xff4d5a,
@@ -237,6 +238,11 @@ function isExpandedFullscreen() {
   return document.fullscreenElement || gamePanel.classList.contains("is-fullscreen-fallback");
 }
 
+function shouldUseFullscreenFallback() {
+  const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return isiOS || !document.fullscreenEnabled || !gamePanel.requestFullscreen;
+}
+
 function updateFullscreenButtons() {
   const label = isExpandedFullscreen() ? "Exit Fullscreen" : "Fullscreen";
   fullscreenButtons.forEach((button) => {
@@ -246,14 +252,31 @@ function updateFullscreenButtons() {
 }
 
 function setFullscreenFallback(isOpen) {
+  if (isOpen) {
+    fallbackScrollY = window.scrollY;
+    document.body.style.top = `-${fallbackScrollY}px`;
+  } else {
+    document.body.style.top = "";
+  }
+
   gamePanel.classList.toggle("is-fullscreen-fallback", isOpen);
+  document.documentElement.classList.toggle("game-expanded", isOpen);
   document.body.classList.toggle("game-expanded", isOpen);
   updateFullscreenButtons();
   resizeRenderer();
+
+  if (!isOpen) {
+    window.scrollTo(0, fallbackScrollY);
+  }
 }
 
 function toggleFullscreen() {
   if (!isExpandedFullscreen()) {
+    if (shouldUseFullscreenFallback()) {
+      setFullscreenFallback(true);
+      return;
+    }
+
     let request;
 
     try {

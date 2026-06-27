@@ -675,6 +675,10 @@ mobileControlsToggle.addEventListener("change", () => {
   gamePanel.classList.toggle("force-touch", mobileControlsToggle.checked);
 });
 
+if (navigator.maxTouchPoints > 0) {
+  gamePanel.classList.add("force-touch");
+}
+
 fullscreenButtons.forEach((button) => {
   button.addEventListener("click", toggleFullscreen);
 });

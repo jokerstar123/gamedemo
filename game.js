@@ -17,6 +17,8 @@ const shadowsToggle = document.querySelector("#shadowsToggle");
 const shiftLockToggle = document.querySelector("#shiftLockToggle");
 const mobileControlsToggle = document.querySelector("#mobileControlsToggle");
 const fullscreenButtons = document.querySelectorAll("[data-fullscreen-button]");
+const movePad = document.querySelector("#movePad");
+const movePadKnob = document.querySelector("#movePadKnob");
 const gamePanel = document.querySelector(".game-panel");
 
 if (!window.THREE) {
@@ -35,6 +37,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.1, 180);
 const keys = new Set();
+const touchInput = new THREE.Vector2();
 const clock = new THREE.Clock();
 const settings = {
   sensitivity: Number(sensitivitySlider.value),
@@ -345,6 +348,35 @@ function setControl(name, isDown) {
   keys.delete(name);
 }
 
+function resetMovePad() {
+  touchInput.set(0, 0);
+  movePadKnob.style.transform = "translate(-50%, -50%)";
+}
+
+function updateMovePad(clientX, clientY) {
+  const rect = movePad.getBoundingClientRect();
+  const radius = rect.width / 2;
+  const centerX = rect.left + radius;
+  const centerY = rect.top + radius;
+  const maxDistance = radius - movePadKnob.offsetWidth / 2;
+  const offsetX = clientX - centerX;
+  const offsetY = clientY - centerY;
+  const distance = Math.min(maxDistance, Math.hypot(offsetX, offsetY));
+  const angle = Math.atan2(offsetY, offsetX);
+  const knobX = Math.cos(angle) * distance;
+  const knobY = Math.sin(angle) * distance;
+  const deadZone = 0.18;
+
+  movePadKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+
+  if (distance / maxDistance < deadZone) {
+    touchInput.set(0, 0);
+    return;
+  }
+
+  touchInput.set(knobX / maxDistance, -knobY / maxDistance);
+}
+
 function handleKeyboard(event, isDown) {
   const code = event.code;
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space", "KeyA", "KeyD", "KeyW", "KeyS", "ShiftLeft", "ShiftRight"].includes(code)) {
@@ -437,6 +469,8 @@ function movePlayer(delta) {
   if (keys.has("back")) input.sub(forward);
   if (keys.has("left")) input.sub(right);
   if (keys.has("right")) input.add(right);
+  input.addScaledVector(forward, touchInput.y);
+  input.addScaledVector(right, touchInput.x);
   if (input.lengthSq() > 0) input.normalize();
 
   if (input.lengthSq() > 0 && !looking && !settings.shiftLock) {
@@ -706,6 +740,25 @@ document.querySelectorAll("[data-control]").forEach((button) => {
   button.addEventListener("pointerleave", () => setControl(control, false));
   button.addEventListener("pointercancel", () => setControl(control, false));
 });
+
+movePad.addEventListener("pointerdown", (event) => {
+  movePad.setPointerCapture(event.pointerId);
+  updateMovePad(event.clientX, event.clientY);
+});
+
+movePad.addEventListener("pointermove", (event) => {
+  if (!movePad.hasPointerCapture(event.pointerId)) return;
+  updateMovePad(event.clientX, event.clientY);
+});
+
+movePad.addEventListener("pointerup", (event) => {
+  if (movePad.hasPointerCapture(event.pointerId)) {
+    movePad.releasePointerCapture(event.pointerId);
+  }
+  resetMovePad();
+});
+
+movePad.addEventListener("pointercancel", resetMovePad);
 
 restartButton.addEventListener("click", restartGame);
 updateSettingsText();

@@ -375,11 +375,53 @@ canvas {
   display: flex;
 }
 
-.dpad {
-  display: grid;
-  grid-template-columns: repeat(3, 54px);
-  grid-template-rows: repeat(2, 54px);
-  gap: 8px;
+.move-pad {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border: 3px solid rgba(255, 255, 255, 0.62);
+  border-radius: 50%;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)),
+    rgba(33, 118, 255, 0.74);
+  box-shadow: inset 0 0 0 12px rgba(255, 255, 255, 0.11), 0 6px 0 #174eab;
+  touch-action: none;
+  pointer-events: auto;
+  opacity: 0.92;
+}
+
+.move-pad::before,
+.move-pad::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  transform: translate(-50%, -50%);
+}
+
+.move-pad::before {
+  width: 72%;
+  height: 3px;
+}
+
+.move-pad::after {
+  width: 3px;
+  height: 72%;
+}
+
+.move-pad-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 54px;
+  height: 54px;
+  border: 2px solid rgba(255, 255, 255, 0.76);
+  border-radius: 50%;
+  background: #ffffff linear-gradient(#ffffff, #ddecff);
+  box-shadow: 0 5px 0 rgba(24, 32, 47, 0.25);
+  transform: translate(-50%, -50%);
 }
 
 .control-button {
@@ -387,36 +429,15 @@ canvas {
   min-height: 54px;
   padding: 10px;
   border: 2px solid rgba(255, 255, 255, 0.55);
-  font-size: 1.35rem;
+  font-size: 1rem;
   line-height: 1;
   touch-action: none;
   pointer-events: auto;
   opacity: 0.9;
 }
 
-.control-button.forward {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.control-button.left {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.control-button.back {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.control-button.right {
-  grid-column: 3;
-  grid-row: 2;
-}
-
 .control-button.jump {
   min-width: 88px;
-  font-size: 1rem;
   background: var(--lava);
   box-shadow: 0 5px 0 #a82f21;
 }

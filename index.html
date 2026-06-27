@@ -93,11 +93,8 @@
           </div>
         </div>
         <div class="touch-controls" aria-label="Touch controls">
-          <div class="dpad">
-            <button class="control-button forward" type="button" data-control="forward" aria-label="Move forward">&uarr;</button>
-            <button class="control-button left" type="button" data-control="left" aria-label="Move left">&larr;</button>
-            <button class="control-button back" type="button" data-control="back" aria-label="Move back">&darr;</button>
-            <button class="control-button right" type="button" data-control="right" aria-label="Move right">&rarr;</button>
+          <div id="movePad" class="move-pad" role="group" aria-label="Movement touchpad">
+            <span id="movePadKnob" class="move-pad-knob" aria-hidden="true"></span>
           </div>
           <button class="control-button jump" type="button" data-control="jump">Jump</button>
         </div>
